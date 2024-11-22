@@ -1,6 +1,7 @@
 class File {
-	__New(d) {
-		this.DncFiles := d
+	__New(dnc, data) {
+		this.DncFiles := dnc
+		this.Data := data
 	}
 	Open(filename) {
 		SourceFile := FileOpen(filename, "r")
@@ -67,11 +68,11 @@ class File {
 		Return (TimeParts[1] * 60) + TimeParts[2]
 	}
 	Counter() {
-		IniRead, Counter, C:\Users\jimmi\Desktop\data.ini, Counters, CncArchive
+		IniRead, Counter, % Data, Counters, CncArchive
 		
 		Counter++
 		
-		IniWrite, % Counter, C:\Users\jimmi\Desktop\data.ini, Counters, CncArchive
+		IniWrite, % Counter, % Data, Counters, CncArchive
 		
 		return Counter
 	}
@@ -117,9 +118,10 @@ class History {
 	}
 }
 DncFiles := "C:\Users\jimmi\Desktop\DncFiles"
+Data := "C:\Users\jimmi\Desktop\data.ini"
 JobHistory := "C:\Users\jimmi\Desktop\JobHistory.xjh"
 
-File := new File(DncFiles)
+File := new File(DncFiles, Data)
 
 if (File.Open(JobHistory)) {
 	File.FindAndArchive(10)
