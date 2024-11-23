@@ -11,7 +11,7 @@ class File {
 		this.FileContent := SourceFile.Read()
 		
 		SourceFile.Close()
-
+		
 		if (!IsObject(SourceFile)) {
 			MsgBox, Error! Could not open source file.
 			return false
@@ -38,7 +38,8 @@ class File {
 			TimeCompleted := this.GetTimeCompleted(this.FileContent, this.FoundFile) ; REVIEW THIS ONE.
 			
 			if (this.TimeDifference(TimeCompleted)) {
-				this.Archive(this.FoundFile)
+			
+				this.Archive(this.FileContent, this.FoundFile)
 			}
 		}
 	}
@@ -46,8 +47,8 @@ class File {
 	;	Valitating the length of the file found in DncFiles.
 	;----------------------------------------
 	IsValidRipFile(filename) {
-		IsRipFile := RegExReplace(filename, ".cnc", "")
-		return (StrLen(IsRipFile) = 4) ; Checking if the files only contains 4 characters.
+		FilenameNoExt := RegExReplace(filename, ".cnc", "")
+		return (StrLen(FilenameNoExt) = 4) ; Checking if the files only contains 4 characters.
 	}
 	;----------------------------------------
 	;	Getting timestamp when a specific file are completed.
@@ -59,15 +60,24 @@ class File {
 	;----------------------------------------
 	;	Archiving file.
 	;----------------------------------------
-	Archive(filename) {
-		Source := this.DncFiles "\" filename
-		Destination := this.DncFiles "\Archive\"
+	Archive(filecontent, filename) {
+		FilenameNoExt := RegExReplace(filename, ".cnc", "")
 		
-		FileMove, % Source , % Destination
+		Machine := new Machine()
+		History := new History()
+		
+		MachineID := Machine.Get(History.GetConnection(filecontent, filename))
+		
+		Source := this.DncFiles "\" filename
+		Destination := this.DncFiles "\Archive\" FilenameNoExt "[" MachineID "].cnc"
+		
+		FileMove, %Source% , %Destination%
 		
 		this.Counter()
 		
-		Sleep, 3000
+		Sleep, 3000 ; Loop if !FileExist instead.
+		
+		return true
 	}
 	;----------------------------------------
 	;	Checking how old the file is.
@@ -122,6 +132,7 @@ class History {
 		IsCompleted := "Job completed." ; EndType string to search for.
 		EndTime := ""
 		EndType := ""
+		Connection := ""
 		Pos := 1
 		
 		Loop
@@ -144,6 +155,68 @@ class History {
 			}
 		}
 	}
+	GetConnection(filecontent, filename) {
+		IsCompleted := "Job completed." ; EndType string to search for.
+		EndType := ""
+		MachineID := ""
+		Pos := 1
+		
+		Loop
+		{
+			if (!InStr(EndType, IsCompleted)) {
+				FoundPos := RegExMatch(filecontent, filename, MatchStr, Pos) ; Finding the filename-string in job history-file.
+
+				if (!MatchStr) {
+					return false
+					break
+				}
+
+				Pos := FoundPos+StrLen(MatchStr)
+				RegExMatch(filecontent, "EndType="".+?""", EndType, Pos) ; Finding the endtype i.e if the job was completed or halted.
+				RegExMatch(filecontent, "Connection="".+?""", MachineID, Pos)
+				RegExMatch(MachineID, "\((\d+)\)", MachineID)
+				MachineID := RegExReplace(MachineID, "\(", "") ; Find a better RegEx. This will do for now.
+				MachineID := RegExReplace(MachineID, "\)", "")
+			}
+			else {
+				return MachineID
+			}
+		}
+	}
+}
+class Machine {
+	__New(l) {
+		this.List := l
+	}
+	Get(machineID) {
+		for k, v in this.List
+		{	
+			machineNR := k
+			if (v = machineID) {
+				return machineNR
+			}
+		}
+	}
+	GetLibrary() {
+		for k, v in this.List
+		{
+			MachineNR := k
+			MachineID := v
+			if (v = "undefined") {
+				Continue
+			}
+			else {
+				Library .= k "(" v ")`n"
+			}
+		}
+		if (Library = "") {
+			MsgBox, no machines
+			return false
+		}
+		MsgBox % "List of machines in the library: `n" Library
+		return true
+	}
+	
 }
 DncFiles := "C:\Users\jimmi\Desktop\DncFiles"
 Data := "C:\Users\jimmi\Desktop\data.ini"
@@ -151,6 +224,14 @@ JobHistory := "C:\Users\jimmi\Desktop\JobHistory.xjh"
 
 File := new File(DncFiles, Data)
 
-if (File.Open(JobHistory)) {
-	File.FindAndArchive(10)
-}
+History := new History()
+; MsgBox % History.GetConnection(File.Open(JobHistory), "EUAL")
+
+MachineList := {1: 42538, 2: 32144, 3: "undefined", 4: "undefined" }
+Machine := new Machine(MachineList)
+
+; MsgBox % Machine.Get(History.GetConnection(File.Open(JobHistory), "EUAL"))
+
+; MsgBox % File.Archive(File.Open(JobHistory), "EUAL.cnc")
+File.Open(JobHistory)
+File.FindAndArchive(10, "rip")
