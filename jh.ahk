@@ -1,10 +1,10 @@
-;--------------------------------------------
+;----------------------------------------------------------------
 ;
 ;				DncNinja 0.1.0
 ;
 ;			2024 - jimmie@skylto.se
 ;
-;--------------------------------------------
+;----------------------------------------------------------------
 ;
 ;	This is a library for archiving files in
 ;	the DncFiles-folder on a computer serving
@@ -18,20 +18,20 @@
 ;	This Library will help you to keep the
 ;	filelist in the hand unit short.
 ;
-;--------------------------------------------
+;----------------------------------------------------------------
 
 class File {
 	__New(dnc, data) {
 		this.DncFiles := dnc ; Initiates DncFiles directory path.
 		this.Data := data ; Inititates data.ini path.
 	}
-	;----------------------------------------
+	;------------------------------------------------------------
 	;	Opening SourceFile.
 	;
 	;	Usage:
 	;	-	Provide the jobhistory file located
 	;		in Coreo Command directory.
-	;----------------------------------------
+	;------------------------------------------------------------
 	Open(filename) {
 		SourceFile := FileOpen(filename, "r")
 		this.FileContent := SourceFile.Read()
@@ -46,7 +46,7 @@ class File {
 			return this.FileContent
 		}
 	}
-	;----------------------------------------
+	;------------------------------------------------------------
 	;	Finding files in DncFiles dir and
 	;	archiving them when criterias are met.
 	;
@@ -59,7 +59,7 @@ class File {
 	;		Else it will only be triggered on
 	;		filenames with characters of 4 for
 	;		an internal purpose of the dev.
-	;----------------------------------------
+	;------------------------------------------------------------
 	FindAndArchive(m, param := "") {
 		this.mins := m
 		
@@ -79,31 +79,31 @@ class File {
 			}
 		}
 	}
-	;----------------------------------------
+	;------------------------------------------------------------
 	;	Valitating the length of the file
 	;	found in DncFiles.
-	;----------------------------------------
+	;------------------------------------------------------------
 	IsValidRipFile(filename) {
 		FilenameNoExt := RegExReplace(filename, ".cnc", "")
 		
 		return (StrLen(FilenameNoExt) = 4) ; Checking if the files only contains 4 characters.
 	}
-	;----------------------------------------
+	;------------------------------------------------------------
 	;	Getting timestamp when a specific
 	;	file are completed.
-	;----------------------------------------
+	;------------------------------------------------------------
 	GetTimeCompleted(filecontent, filename) {
 		History := new History()
 		
 		return History.JobCompleted(filecontent, filename) ; Returning timestamp.
 	}
-	;----------------------------------------
+	;------------------------------------------------------------
 	;	Creating a new folder in Archive
 	;	with todays date.
 	;	Archiving the file into that folder
 	;	with a machine number appended to the
 	;	filename.
-	;----------------------------------------
+	;------------------------------------------------------------
 	Archive(filecontent, filename) {
 		FilenameNoExt := RegExReplace(filename, ".cnc", "")
 		
@@ -133,10 +133,10 @@ class File {
 		
 		return true
 	}
-	;----------------------------------------
+	;------------------------------------------------------------
 	;	Checking the time since the file was
 	;	completed.
-	;----------------------------------------
+	;------------------------------------------------------------
 	TimeDifference(timecompleted) {
 		FormatTime, SystemTime,, HH:mm
 		
@@ -146,17 +146,17 @@ class File {
 		return TimeDifference := (SystemTimeMinutes - TimeCompletedMinutes >= this.mins) ? true : false ; this.mins is the variable where the time you want to wait after a file was completed before you want to move it.
 		
 	}
-	;----------------------------------------
+	;------------------------------------------------------------
 	;	Splitting hour and minutes to minutes.
-	;----------------------------------------
+	;------------------------------------------------------------
 	GetMinutes(Time)
 	{
 		TimeParts := StrSplit(Time, ":")
 		Return (TimeParts[1] * 60) + TimeParts[2] ; Converting time to minutes.
 	}
-	;----------------------------------------
+	;------------------------------------------------------------
 	;	Countning archived files.
-	;----------------------------------------
+	;------------------------------------------------------------
 	Counter() {
 		if (!FileExist(A_ScriptDir "\data.ini") {
 			FileAppend, , %A_ScriptDir%\data.ini
@@ -175,23 +175,23 @@ class File {
 }
 
 class History {
-	;----------------------------------------
+	;------------------------------------------------------------
 	;	Getting a timestamp when the file 
 	;	was completed.
-	;----------------------------------------
+	;------------------------------------------------------------
 	JobCompleted(filecontent, filename) {
 		
 		EndTime := this.GetEndTime(filecontent, filename)
 		
 		return (EndTime) ? EndTime : false
 	}
-	;----------------------------------------
+	;------------------------------------------------------------
 	;	Looping through the job history to
 	;	check if the file was completed.
 	;	If the file was halted or was not
 	;	completed in any other way, the script
 	;	will leave this file.
-	;----------------------------------------
+	;------------------------------------------------------------
 	GetEndTime(filecontent, filename) {
 		IsCompleted := "Job completed." ; EndType string to search for.
 		EndTime := ""
@@ -219,10 +219,10 @@ class History {
 			}
 		}
 	}
-	;----------------------------------------
+	;------------------------------------------------------------
 	;	Looping through the job history to
 	;	locate the machineID.
-	;----------------------------------------
+	;------------------------------------------------------------
 	GetConnection(filecontent, filename) {
 		IsCompleted := "Job completed." ; EndType string to search for.
 		EndType := ""
@@ -256,7 +256,7 @@ class Machine {
 	__New(l) {
 		this.List := l ; Machinelist array.
 	}
-	;----------------------------------------
+	;------------------------------------------------------------
 	;	Matching the machineNR withe the
 	;	MachineID. This is for those who have
 	;	more than one machine so you can keep
@@ -268,7 +268,7 @@ class Machine {
 	;	-	machineID = Provide multicams
 	;		machineID to get the machineNR
 	;		in return from the library.
-	;----------------------------------------
+	;------------------------------------------------------------
 	Get(machineID) {
 		for k, v in this.List
 		{	
@@ -278,10 +278,10 @@ class Machine {
 			}
 		}
 	}
-	;----------------------------------------
+	;------------------------------------------------------------
 	;	Parcing out the list of machines in
 	;	the  library.
-	;----------------------------------------
+	;------------------------------------------------------------
 	GetLibrary() {
 		for k, v in this.List
 		{
@@ -305,14 +305,14 @@ class Machine {
 }
 
 
-;----------------------------------------
+;------------------------------------------------------------
 ;	1 = Machine number. 00000 = Multicam
 ;	machine ID.
 ;	Change the machine ID before usage.
 ;	Add more machines if needed by placing
 ;	a , in the array.
 ;	( {1: 00000, 2: 00000} and so on.)
-;----------------------------------------
+;------------------------------------------------------------
 MachineList := {1: 00000} ; Provide machine ID before runing.
 Machine := new Machine(MachineList)
 
@@ -322,8 +322,8 @@ File := new File(DncFiles, Data)
 
 History := new History()
 
-;----------------------------------------
+;------------------------------------------------------------
 ;	Running the script.
-;----------------------------------------
+;------------------------------------------------------------
 File.Open("\JobHistory.xjh") ; Provide correct path before running.
 File.FindAndArchive(0) ; Set the time in minutes.
