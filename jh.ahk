@@ -21,9 +21,9 @@
 ;----------------------------------------------------------------
 
 class File {
-	__New(dnc, data) {
+	__New(dnc) {
 		this.DncFiles := dnc ; Initiates DncFiles directory path.
-		this.Data := data ; Inititates data.ini path.
+		this.Data := A_ScriptDir "\data.ini" ; Inititates data.ini path.
 	}
 	;------------------------------------------------------------
 	;	Opening SourceFile.
@@ -110,16 +110,22 @@ class File {
 		Machine := new Machine()
 		History := new History()
 		
+		DateFolder := A_DD "-" A_MM "-" A_YYYY
+		
 		if (!FileExist(this.DncFiles "\Archive\" A_DD "-" A_MM "-" A_YYYY)) {
 			FileCreateDir, % this.DncFiles "\Archive\" A_DD "-" A_MM "-" A_YYYY ; Creating folder with todays date.
 			
 			while (!FileExist(this.DncFiles "\Archive\" A_DD "-" A_MM "-" A_YYYY)) {
+				if (A_Index >= 10) {
+					DncFiles := this.DncFiles
+					MsgBox, Could not create %DateFolder% in %DncFiles% "\Archive\"
+					
+					return false
+				}
 				sleep, 500
 			}
 		}
-		
-		DateFolder := A_DD "-" A_MM "-" A_YYYY
-		
+			
 		MachineID := Machine.Get(History.GetConnection(filecontent, filename))
 		
 		Source := this.DncFiles "\" filename
@@ -158,17 +164,23 @@ class File {
 	;	Countning archived files.
 	;------------------------------------------------------------
 	Counter() {
-		if (!FileExist(A_ScriptDir "\data.ini") {
+		if (!FileExist(A_ScriptDir "\data.ini")) {
 			FileAppend, , %A_ScriptDir%\data.ini
-			While (!FileExist(A_ScriptDir "\data.ini") {
+			While (!FileExist(A_ScriptDir "\data.ini")) {
+				if (A_Index >= 10) {
+					MsgBox, Could not create data.ini in %A_ScriptDir% .
+					
+					return false
+				}
 				Sleep, 500
 			}
+			IniWrite, 0, % this.Data, Counters, ArchivedFiles
 		}
-		IniRead, Counter, % Data, Counters, CncArchive
-		
+		IniRead, Counter, % this.Data, Counters, ArchivedFiles
+				
 		Counter++
 		
-		IniWrite, % Counter, % Data, Counters, CncArchive ; Saving the counter externaly.
+		IniWrite, % Counter, % this.Data, Counters, ArchivedFiles ; Saving the counter externaly.
 		
 		return Counter
 	}
@@ -236,7 +248,6 @@ class History {
 
 				if (!MatchStr) {
 					return false
-					break
 				}
 
 				Pos := FoundPos+StrLen(MatchStr)
@@ -317,13 +328,16 @@ MachineList := {1: 00000} ; Provide machine ID before runing.
 Machine := new Machine(MachineList)
 
 DncFiles := "\DncFiles" ; Provide correct path before running.
-Data := A_ScriptDir "\data.ini"
-File := new File(DncFiles, Data)
+File := new File(DncFiles)
 
 History := new History()
 
 ;------------------------------------------------------------
 ;	Running the script.
 ;------------------------------------------------------------
-File.Open("\JobHistory.xjh") ; Provide correct path before running.
-File.FindAndArchive(0) ; Set the time in minutes.
+JobHistory := "\JobHistory.xjh"
+File.Open(JobHistory) ; Provide correct path before running.
+File.FindAndArchive(10) ; Set the time in minutes.
+
+
+
