@@ -1,6 +1,6 @@
 ;----------------------------------------------------------------
 ;
-;	DncNinja 0.1.0
+;	DncNinja 0.3.15
 ;
 ;	2024 - jimmie(at)skylto.se
 ;
@@ -10,7 +10,7 @@
 ;	the DncFiles-folder on a computer serving
 ;	MULTICAM machines.
 ;	When running a lot of files in a day,
-;	the list in the hand unit thends to get
+;	the list in the hand unit tends to get
 ;	long after a day and it takes a lot
 ;	of time to scroll through the pages to
 ;	find the file you are searching for.
@@ -21,9 +21,24 @@
 ;----------------------------------------------------------------
 
 class File {
-	__New(dnc) {
-		this.DncFiles := dnc ; Initiates DncFiles directory path.
+	__New(dnc, sub := "") {
+		this.ErrorHandler := new ErrorHandler()
+		
+		if (dnc = "") {
+			MsgBox, , DncNinja, Error! No path to DncFiles was provided.
+			this.ErrorHandler.Push(A_ThisFunc, A_LineNumber, "No path to DncFiles was provided.")
+			
+			return false
+		}
+		if (sub) {
+			this.DncFiles := dnc "\" sub ; Initiates DncFiles with chosen subdirectory.
+		}
+		else {
+			this.DncFiles := dnc ; Initiates DncFiles root directory.
+		}
+		
 		this.Data := A_ScriptDir "\data.ini" ; Inititates data.ini path.
+		
 	}
 	;------------------------------------------------------------
 	;	Opening SourceFile.
@@ -33,13 +48,16 @@ class File {
 	;		in Coreo Command directory.
 	;------------------------------------------------------------
 	Open(filename) {
+		
 		SourceFile := FileOpen(filename, "r")
 		this.FileContent := SourceFile.Read()
 		
 		SourceFile.Close()
 		
 		if (!IsObject(SourceFile)) {
-			MsgBox, Error! Could not open source file.
+			MsgBox, , DncNinja, Error! Could not open source file.
+			this.ErrorHandler.Push(A_ThisFunc, A_LineNumber, "Could not open source file.")
+			
 			return false
 		}
 		else {
@@ -62,22 +80,48 @@ class File {
 	;------------------------------------------------------------
 	FindAndArchive(m, param := "") {
 		this.mins := m
-		
+
 		Loop, Files, % this.DncFiles "\*.cnc"
 		{
 			this.FoundFile := A_LoopFileName
+			
+			if (InStr(this.FoundFile, "[")) ; If a machine number is present in the filenamne, it will remove it before continuing.
+			{
+			
+				this.FoundFile := RegExReplace(this.FoundFile, "\[[0-9]\]", "")
+				
+				Source := this.DncFiles "\" A_LoopFileName
+				Destination := this.DncFiles "\" this.FoundFile
+				
+				FileMove, %Source%, %Destination%
+				
+				while (!Destination) {
+					
+					if (A_Index >= 10) {
+						
+						MsgBox, , DncNinja, Error! Could not rename file.
+						this.ErrorHandler.Push(A_ThisFunc, A_LineNumber, "Could not rename file.")
+						
+						break
+					}
+					Sleep, 500
+				}
+			}
 			
 			if (param = "rip" && !this.IsValidRipFile(this.FoundFile)) { ; This code wont be useful for anyone else than the dev.
 				Continue
 			}
 			
 			TimeCompleted := this.GetTimeCompleted(this.FileContent, this.FoundFile)
-			
-			if (this.TimeDifference(TimeCompleted)) { ; 
-			
+	
+			if (this.TimeDifference(TimeCompleted) || this.mins = 0) { ; If time criteria are met, these files will be archived OR if the time was set to 0 it will archive all of the files in the DncFiles folder.
 				this.Archive(this.FileContent, this.FoundFile)
 			}
+			else {
+				return false ; If there were no files to be moved it will retun false.
+			}
 		}
+		return true
 	}
 	;------------------------------------------------------------
 	;	Valitating the length of the file
@@ -118,7 +162,9 @@ class File {
 			while (!FileExist(this.DncFiles "\Archive\" A_DD "-" A_MM "-" A_YYYY)) {
 				if (A_Index >= 10) {
 					DncFiles := this.DncFiles
-					MsgBox, Could not create %DateFolder% in %DncFiles% "\Archive\"
+					
+					MsgBox, , DncNinja, Error! Could not create %DateFolder% in %DncFiles% "\Archive\"
+					this.ErrorHandler.Push(A_ThisFunc, A_LineNumber, "Could not create folder in DncFiles")
 					
 					return false
 				}
@@ -126,14 +172,29 @@ class File {
 			}
 		}
 			
-		MachineID := Machine.Get(History.GetConnection(filecontent, filename))
+		MachineNR := Machine.Get(History.GetConnection(filecontent, filename))
+		
+		if (!MachineNR) {
+			MachineNR := 0 ; If the machine number could not be found, it will still proceed, but the machine number in the filename will be set to 0.
+		}
 		
 		Source := this.DncFiles "\" filename
-		Destination := this.DncFiles "\Archive\" DateFolder "\" FilenameNoExt "[" MachineID "].cnc" ; Appending machine number to the filename.
+		Destination := this.DncFiles "\Archive\" DateFolder "\" FilenameNoExt "[" MachineNR "].cnc" ; Appending machine number to the filename.
 		
 		FileMove, %Source% , %Destination%
 		
-		this.Counter()
+		while (!Destination) {
+				
+			if (A_Index >= 10) {
+				MsgBox, , DncNinja, Error! Could not move file.
+				this.ErrorHandler.Push(A_ThisFunc, A_LineNumber, "Could not move file")
+				
+				break
+			}
+			Sleep, 500
+		}
+		
+		this.Counter(1)
 		
 		Sleep, 3000 ; Loop if !FileExist instead.
 		
@@ -163,12 +224,13 @@ class File {
 	;------------------------------------------------------------
 	;	Countning archived files.
 	;------------------------------------------------------------
-	Counter() {
+	Counter(x := "") {
 		if (!FileExist(A_ScriptDir "\data.ini")) {
 			FileAppend, , %A_ScriptDir%\data.ini
 			While (!FileExist(A_ScriptDir "\data.ini")) {
 				if (A_Index >= 10) {
-					MsgBox, Could not create data.ini in %A_ScriptDir% .
+					MsgBox, , DncNinja, Could not create data.ini in %A_ScriptDir%.
+					this.ErrorHandler.Push(A_ThisFunc, A_LineNumber, "Could not create data.ini")
 					
 					return false
 				}
@@ -177,12 +239,49 @@ class File {
 			IniWrite, 0, % this.Data, Counters, ArchivedFiles
 		}
 		IniRead, Counter, % this.Data, Counters, ArchivedFiles
-				
-		Counter++
+		
+		if (x = 1) {
+			Counter++
+		}
+		else if (x = 0){ ; A negative counting will only be beployed if there was a pullback. 
+			Counter--
+		}
 		
 		IniWrite, % Counter, % this.Data, Counters, ArchivedFiles ; Saving the counter externaly.
 		
 		return Counter
+	}
+	;------------------------------------------------------------
+	;	Restoring a file that once have been archived.
+	;------------------------------------------------------------
+	PullBack(filename) {
+		
+		
+		FileExsisting := false
+		
+		Loop, Files, % this.DncFiles "\Archive\" filename "[*].cnc", R ; It will search for the file in the subdirectories of Archive.(R)
+		{
+			Source := A_LoopFileLongPath
+			Destination := this.DncFiles
+			
+			FileExsisting := true
+			
+			break
+		}
+		
+		if (FileExsisting) {
+			FileMove, %Source%, %Destination%, 1
+
+			this.Counter(0)
+		
+			return true
+		}
+		else {
+			MsgBox, , DncNinja, Error! File does not exsist in archive.
+			this.ErrorHandler.Push(A_ThisFunc, A_LineNumber, "File does not exsist in archive")
+			
+			return false
+		}
 	}
 }
 
@@ -266,6 +365,13 @@ class History {
 class Machine {
 	__New(l) {
 		this.List := l ; Machinelist array.
+		if (this.List = "") {
+			MsgBox, , DncNinja, Error! No machine list was provided.
+			this.ErrorHandler.Push(A_ThisFunc, A_LineNumber, "No machine list was provided.")
+			
+			return false
+		}
+		this.ErrorHandler := new ErrorHandler()
 	}
 	;------------------------------------------------------------
 	;	Matching the machineNR withe the
@@ -288,6 +394,10 @@ class Machine {
 				return machineNR ; MFindning and matching the MachineNr with the MachineID.
 			}
 		}
+		MsgBox, , DncNinja, Error! Could not get the machine number.
+		this.ErrorHandler.Push(A_ThisFunc, A_LineNumber, "Could not get the machine number.")
+		
+		return false
 	}
 	;------------------------------------------------------------
 	;	Parcing out the list of machines in
@@ -302,21 +412,33 @@ class Machine {
 				Continue
 			}
 			else {
-				Library .= MachineNR "(" MachineID ")`n" ; Parsing list of machines.
+				Library .= MachineNR "(" MachineID ")`n" ; Parsing a list of machines.
 			}
 		}
 		if (Library = "") {
-			MsgBox, There are no machines in the library.
+			MsgBox, , DncNinja, Error! There are no machines in the library.
+			this.ErrorHandler.Push(A_ThisFunc, A_LineNumber, "No machine found.")
+			
 			return false
 		}
-		MsgBox % "List of machines in the library: `n" Library
+		MsgBox, , DncNinja, List of machines in the library: `n %Library%
 		return true
 	}
 	
 }
+class ErrorHandler {
+	Push(from, line, msg) {
+		TimeStamp := A_DD "-" A_MM "-" A_YYYY  "[" A_Hour ":" A_Min "]"
+		ErrorMessage := TimeStamp " - " from " @ line: " line  " ( " msg " )`n"
+		
+		FileAppend, %ErrorMessage%, %A_ScriptDir%\ErrorLog.txt
+	}
+}
 
 
 ;------------------------------------------------------------
+;	Settings
+;
 ;	1 = Machine number. 00000 = Multicam
 ;	machine ID.
 ;	Change the machine ID before usage.
@@ -325,19 +447,18 @@ class Machine {
 ;	( {1: 00000, 2: 00000} and so on.)
 ;------------------------------------------------------------
 MachineList := {1: 00000} ; Provide machine ID before runing.
-Machine := new Machine(MachineList)
-
 DncFiles := "\DncFiles" ; Provide correct path before running.
-File := new File(DncFiles)
+SubDirectory := "" ; Provide correct path before running. Use this only if you dont work i the root of DncFiles.
+JobHistory := "\JobHistory.xjh" ;Provide correct path before running.
 
-History := new History()
+;------------------------------------------------------------
+;	Initiating objects.
+;------------------------------------------------------------
+Machine := new Machine(MachineList)
+File := new File(DncFiles) ; You can add SubDirectory as an parameter after DncFiles if your working direcory isn't the root of DncFiles.
 
 ;------------------------------------------------------------
 ;	Running the script.
 ;------------------------------------------------------------
-JobHistory := "\JobHistory.xjh"
 File.Open(JobHistory) ; Provide correct path before running.
-File.FindAndArchive(10) ; Set the time in minutes.
-
-
-
+File.FindAndArchive(0) ; Set the time in minutes. 0 will archive all.
